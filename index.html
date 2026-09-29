@@ -592,6 +592,14 @@ tfoot td{border-top:1px solid var(--ink-2);background:var(--paper-2)}
   .leaflet-popup .pop p{display:block}
   .leaflet-popup-content{max-height:46dvh!important}
 }
+.grab{display:none}
+@media (max-width:999px){
+  .grab{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0 2px;cursor:pointer}
+  .grab span{width:44px;height:5px;border-radius:3px;background:var(--line)}
+  .grab em{font-style:normal;font-size:10.5px;color:var(--muted)}
+  .mc-btn{width:44px;height:44px;font-size:21px}
+  .mc-back{font-size:15px;padding:10px 16px}
+}
 </style>
 </head>
 <body>
@@ -602,6 +610,7 @@ tfoot td{border-top:1px solid var(--ink-2);background:var(--paper-2)}
   <div class="legend" id="legend"></div>
 </aside>
 <main class="content">
+  <div class="grab" id="grab" aria-hidden="true"><span></span><em>아래로 내리면 지도 크게</em></div>
   <header class="top">
     <div class="eyebrow">SHA · 2026.10.03 SAT → 10.06 TUE · 3박 4일</div>
     <div class="top-row">
@@ -948,6 +957,13 @@ const BackCtl = L.Control.extend({options:{position:'topleft'}, onAdd(){
   return d;
 }});
 new BackCtl().addTo(map);
+/* phone: pull the itinerary sheet down (at its top) to open the full map */
+(() => {
+  const pane = document.querySelector('.content'); let y0 = null, fired = false;
+  pane.addEventListener('touchstart', e => { if (!isNarrow()) return; y0 = pane.scrollTop <= 0 ? e.touches[0].clientY : null; fired = false; }, {passive:true});
+  pane.addEventListener('touchmove', e => { if (y0 === null || fired) return; if (e.touches[0].clientY - y0 > 70) { fired = true; setFull(true); } }, {passive:true});
+  $('#grab').addEventListener('click', () => setFull(true));
+})();
 function setFull(on){
   $('#app').classList.toggle('full', on); $('#app').classList.remove('collapsed', 'big');
   renderTools();
