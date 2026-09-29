@@ -565,6 +565,33 @@ tfoot td{border-top:1px solid var(--ink-2);background:var(--paper-2)}
   .map-tools .row.one .msize{margin-left:0}
   .leaflet-popup .gal{display:none}
 }
+/* v3: tidy map chrome */
+.map-tools{padding:8px 10px!important}
+.map-tools .row{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:6px}
+.map-tools .row::-webkit-scrollbar{display:none}
+.map-tools .row>*{flex:none}
+.dchip.modechip{margin-left:4px;border-style:dashed}
+.dchip.modechip.on{border-style:solid;background:var(--ink);color:#0c0d0f}
+.mctl{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.mc-btn{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:rgba(20,21,24,.92);color:var(--ink);font-size:19px;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.mc-btn.on{color:#4c8dff;border-color:#4c8dff}
+.mc-base{font:600 11.5px var(--f-body);background:rgba(20,21,24,.92);color:var(--ink-2);border:1px solid var(--line);border-radius:10px;padding:6px 6px;max-width:112px}
+.mc-back{display:none;align-items:center;gap:4px;border:0;border-radius:999px;background:var(--ink);color:#0c0d0f;font:700 14px var(--f-body);padding:9px 14px;box-shadow:0 2px 10px rgba(0,0,0,.5);cursor:pointer}
+.app.full .mc-back{display:flex}
+.app.full .leaflet-control-zoom{display:none}
+.me{width:20px;height:20px;border-radius:50%;background:#4c8dff;border:3px solid #fff;box-shadow:0 0 0 6px rgba(76,141,255,.25)}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:#fff;color:#000;font:600 13.5px var(--f-body);padding:10px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:7000;max-width:90vw;text-align:center}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+@media (max-width:999px){
+  .app{position:fixed;inset:0;height:auto!important;padding-top:env(safe-area-inset-top,0px)}
+  .mapcol{flex-basis:50%!important}
+  .app.full .mapcol{flex:1 1 auto!important}
+  .leaflet-popup .gal{display:flex!important;flex-wrap:nowrap;gap:6px}
+  .leaflet-popup .gph{flex:1 1 0!important;height:86px;aspect-ratio:auto}
+  .leaflet-popup .gcap{display:none}
+  .leaflet-popup .pop p{display:block}
+  .leaflet-popup-content{max-height:46dvh!important}
+}
 </style>
 </head>
 <body>
@@ -901,14 +928,54 @@ const BASES = {
 };
 let baseKey = store.get('base', 'osm'); if (!BASES[baseKey]) baseKey = 'osm';
 BASES[baseKey].layer.addTo(map);
-const BaseCtl = L.Control.extend({options:{position:'topright'}, onAdd(){
-  const d = L.DomUtil.create('div', 'basectl');
-  d.innerHTML = `<select aria-label="바탕 지도">${Object.entries(BASES).map(([k, b]) => `<option value="${k}" ${k === baseKey ? 'selected' : ''}>${b.ko}</option>`).join('')}</select>`;
-  L.DomEvent.disableClickPropagation(d);
-  d.querySelector('select').onchange = e => setBase(e.target.value);
+const MapCtl = L.Control.extend({options:{position:'topright'}, onAdd(){
+  const d = L.DomUtil.create('div', 'mctl');
+  d.innerHTML = `<button type="button" class="mc-btn mc-full" title="지도만 크게 보기" aria-label="지도만 크게 보기">⛶</button>
+    <button type="button" class="mc-btn mc-loc" title="내 위치" aria-label="내 위치">◎</button>
+    <select class="mc-base" aria-label="바탕 지도">${Object.entries(BASES).map(([k, b]) => `<option value="${k}" ${k === baseKey ? 'selected' : ''}>${b.ko}</option>`).join('')}</select>`;
+  L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+  d.querySelector('.mc-full').onclick = () => setFull(!$('#app').classList.contains('full'));
+  d.querySelector('.mc-loc').onclick = locate;
+  d.querySelector('.mc-base').onchange = e => setBase(e.target.value);
   return d;
 }});
-new BaseCtl().addTo(map);
+new MapCtl().addTo(map);
+const BackCtl = L.Control.extend({options:{position:'topleft'}, onAdd(){
+  const d = L.DomUtil.create('button', 'mc-back');
+  d.type = 'button'; d.innerHTML = '← 일정으로';
+  L.DomEvent.disableClickPropagation(d);
+  d.onclick = () => setFull(false);
+  return d;
+}});
+new BackCtl().addTo(map);
+function setFull(on){
+  $('#app').classList.toggle('full', on); $('#app').classList.remove('collapsed', 'big');
+  renderTools();
+  setTimeout(() => { map.invalidateSize(); if (!on) { const a = document.querySelector('.slot.active'); if (a) a.scrollIntoView({block:'center'}); } }, 80);
+}
+/* current location (phone GPS is WGS-84; shifted to GCJ only on the Amap base) */
+let meMk = null, meCircle = null, watchId = null, meLL = null, meAcc = 0;
+function toast(t){ let el = $('#toast'); if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); } el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 3200); }
+function drawMe(fly){
+  if (!meLL) return;
+  const ll = posLL(meLL[0], meLL[1]);
+  if (!meMk) {
+    meMk = L.marker(ll, {icon: L.divIcon({className:'', iconSize:[20,20], iconAnchor:[10,10], html:'<div class="me"></div>'}), zIndexOffset:3000, interactive:false}).addTo(map);
+    meCircle = L.circle(ll, {radius: meAcc, color:'#4c8dff', weight:1, fillColor:'#4c8dff', fillOpacity:.12, interactive:false}).addTo(map);
+  } else { meMk.setLatLng(ll); meCircle.setLatLng(ll).setRadius(meAcc); }
+  if (fly) map.flyTo(ll, Math.max(map.getZoom(), 16), {duration:.6});
+}
+function locate(){
+  if (!navigator.geolocation) { toast('이 브라우저는 위치 기능을 지원하지 않아요'); return; }
+  if (watchId !== null && meLL) { drawMe(true); return; }
+  toast('현재 위치를 찾는 중…');
+  let first = true;
+  watchId = navigator.geolocation.watchPosition(p => {
+    meLL = [p.coords.latitude, p.coords.longitude]; meAcc = p.coords.accuracy || 30;
+    drawMe(first); if (first) toast(`내 위치 · 오차 약 ${Math.round(meAcc)}m`); first = false;
+    document.querySelector('.mc-loc')?.classList.add('on');
+  }, err => { watchId = null; toast(err.code === 1 ? '위치 권한이 꺼져 있어요. 브라우저 설정에서 위치 허용을 켜 주세요.' : '위치를 가져오지 못했어요. 잠시 후 다시 눌러 주세요.'); }, {enableHighAccuracy:true, maximumAge:10000, timeout:20000});
+}
 const posLL = (lat, lng) => BASES[baseKey].gcj ? gcj(lat, lng) : [lat, lng];
 const pos = p => posLL(p.lat, p.lng);
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -1042,24 +1109,19 @@ function fitDay(di){
 }
 function renderTools(){
   const pl = plan();
-  const modeSeg = `<div class="mseg"><button type="button" data-mode="route" class="${mapState.mode === 'route' ? 'on' : ''}">일정 경로</button><button type="button" data-mode="places" class="${mapState.mode === 'places' ? 'on' : ''}">모든 장소</button></div>`;
-  const baseSeg = '';
-  const A = $('#app');
-  const collapse = `<button type="button" class="mcollapse" id="mapCollapse">${A.classList.contains('collapsed') ? '지도 펼치기' : '지도 접기'}</button>`;
-  const fullBtn = `<button type="button" class="mcollapse mfull" id="mapFull">${A.classList.contains('full') ? '일정 보기' : '지도만 보기'}</button>`;
-  const bigBtn = A.classList.contains('collapsed') || A.classList.contains('full') ? '' : `<button type="button" class="mcollapse msize" id="mapBig">${A.classList.contains('big') ? '지도 크게' : '일정 크게'}</button>`;
-  let row2;
+  let row;
   if (mapState.mode === 'route') {
-    row2 = `<button type="button" class="dchip ${mapState.day < 0 ? 'on' : ''}" data-day="-1">전체</button>`
+    row = `<button type="button" class="dchip ${mapState.day < 0 ? 'on' : ''}" data-day="-1">전체</button>`
       + pl.days.map((d, i) => `<button type="button" class="dchip ${mapState.day === i ? 'on' : ''}" data-day="${i}" style="--c:${DAYC[i]}"><i></i>${i+1}일차 ${esc(d.wd)}</button>`).join('')
-      + `<label class="follow" for="followChk"><input type="checkbox" id="followChk" ${mapState.follow ? 'checked' : ''}>스크롤 따라가기</label>`;
+      + `<button type="button" class="dchip modechip" data-mode="places">📍 모든 장소</button>`
+      + (isNarrow() ? '' : `<label class="follow" for="followChk"><input type="checkbox" id="followChk" ${mapState.follow ? 'checked' : ''}>스크롤 따라가기</label>`);
   } else {
-    row2 = groups.map(g => { const k = CAT[g.cats[0]]; return `<button class="chip" type="button" data-g="${g.key}" aria-pressed="${!!mapState.on[g.key]}"><span class="g" style="background:${k.c}">${k.g}</span>${g.ko}</button>`; }).join('')
+    row = `<button type="button" class="dchip modechip on" data-mode="route">← 일정 경로</button>`
+      + groups.map(g => { const k = CAT[g.cats[0]]; return `<button class="chip" type="button" data-g="${g.key}" aria-pressed="${!!mapState.on[g.key]}"><span class="g" style="background:${k.c}">${k.g}</span>${g.ko}</button>`; }).join('')
       + `<button class="chip plain ${mapState.mustOnly ? 'on' : ''}" type="button" id="mustOnly">필수만</button>`;
   }
-  $('#mapTools').innerHTML = isNarrow()
-    ? `<div class="row one">${modeSeg}${fullBtn}${bigBtn}${A.classList.contains('full') ? '' : collapse}</div><div class="row">${row2}</div>`
-    : `<div class="row">${modeSeg}${baseSeg}${fullBtn}</div><div class="row">${row2}</div>`;
+  $('#mapTools').innerHTML = `<div class="row">${row}</div>`;
+  const fb = document.querySelector('.mc-full'); if (fb) fb.innerHTML = $('#app').classList.contains('full') ? '⤡' : '⛶';
 }
 function renderLegend(){
   const el = $('#legend');
@@ -1077,7 +1139,7 @@ function setDay(di, fit){
 function setBase(k){
   if (!BASES[k] || k === baseKey) return;
   map.removeLayer(BASES[baseKey].layer); baseKey = k; BASES[k].layer.addTo(map); store.set('base', k);
-  renderMap();
+  renderMap(); drawMe(false);
 }
 function expandMap(){ const a = $('#app'); if (a.classList.contains('collapsed')) { a.classList.remove('collapsed'); renderTools(); setTimeout(() => map.invalidateSize(), 60); } }
 function toggleCollapse(){ const a = $('#app'); a.classList.toggle('collapsed'); a.classList.remove('big'); renderTools(); setTimeout(() => map.invalidateSize(), 80); }
@@ -1093,9 +1155,6 @@ $('#mapTools').addEventListener('click', e => {
   const d = e.target.closest('[data-day]'); if (d) { setDay(+d.dataset.day, true); return; }
   const g = e.target.closest('[data-g]'); if (g) { mapState.on[g.dataset.g] = !mapState.on[g.dataset.g]; store.set('mapOn', mapState.on); renderMap(); return; }
   if (e.target.closest('#mustOnly')) { mapState.mustOnly = !mapState.mustOnly; renderMap(); return; }
-  if (e.target.closest('#mapFull')) { const a = $('#app'); a.classList.toggle('full'); a.classList.remove('collapsed', 'big'); renderTools(); setTimeout(() => { map.invalidateSize(); if (mapState.mode === 'route') fitDay(mapState.day); }, 80); return; }
-  if (e.target.closest('#mapCollapse')) toggleCollapse();
-  if (e.target.closest('#mapBig')) { $('#app').classList.toggle('big'); renderTools(); setTimeout(() => { map.invalidateSize(); if (mapState.mode === 'route') fitDay(mapState.day); }, 80); }
 });
 $('#mapTools').addEventListener('change', e => { if (e.target.id === 'followChk') { mapState.follow = e.target.checked; store.set('follow', mapState.follow); } });
 
@@ -1118,7 +1177,8 @@ function focusStop(di, id){
   expandMap();
   if (mapState.mode !== 'route') { mapState.mode = 'route'; store.set('mapMode', 'route'); }
   if (mapState.day !== di || !stopMarkers[`${di}:${id}`]) { mapState.day = di; renderMap(); markDayCards(); }
-  flyTo(P[id], isNarrow() ? null : stopMarkers[`${di}:${id}`]);
+  if (isNarrow() && !$('#app').classList.contains('full')) { setFull(true); }
+  setTimeout(() => flyTo(P[id], stopMarkers[`${di}:${id}`]), isNarrow() ? 120 : 0);
   setActiveSlot(di, id, false);
 }
 function setActiveSlot(di, id, scroll){
