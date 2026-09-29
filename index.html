@@ -637,6 +637,18 @@ tfoot td{border-top:1px solid var(--ink-2);background:var(--paper-2)}
   .app.full .leaflet-popup .pop h4{font-size:19px}
   .app.full .mctl{margin-top:64px}
 }
+#sheet{position:fixed;left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:1600;max-height:58dvh;background:var(--paper);border:1px solid var(--line);border-radius:18px;box-shadow:0 -6px 30px rgba(0,0,0,.55);display:flex;flex-direction:column}
+.sheet-x{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--paper-2);color:var(--ink);font-size:15px;z-index:2}
+.sheet-body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px 16px;font-size:15px;line-height:1.55;overflow-wrap:anywhere}
+.sheet-body .pop h4{font-size:19px;margin-right:36px}
+.sheet-body .pop .cn{font-size:15.5px}
+.sheet-body .gal{display:flex;gap:6px}
+.sheet-body .gph{flex:1 1 0;height:120px;aspect-ratio:auto}
+.sheet-body dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px}
+.sheet-body dd{margin:0;min-width:0}
+.sheet-body .plinks,.sheet-body .acts{display:flex;flex-wrap:wrap}
+.sheet-body .btn{font-size:14px;padding:8px 12px}
+.vinfo dd,.mala-note{overflow-wrap:anywhere;word-break:keep-all}
 </style>
 </head>
 <body>
@@ -807,6 +819,7 @@ tfoot td{border-top:1px solid var(--ink-2);background:var(--paper-2)}
 </main>
 </div>
 
+<div id="sheet" hidden role="dialog" aria-label="장소 정보"><button type="button" class="sheet-x" id="sheetX" aria-label="닫기">✕</button><div class="sheet-body" id="sheetBody"></div></div>
 <div id="lightbox" hidden role="dialog" aria-label="사진 크게 보기"><button type="button" class="lb-x" id="lbClose">닫기</button><img id="lbImg" alt=""><div class="lb-cap" id="lbCap"></div><div class="lb-nav"><button type="button" id="lbPrev">‹ 이전</button><button type="button" id="lbNext">다음 ›</button></div></div>
 <div id="driver" hidden role="dialog" aria-modal="true" aria-label="기사님께 보여줄 카드">
   <div class="top"><span id="drvHint">기사님께 이 화면을 보여주세요</span><button class="x" id="drvClose" type="button">닫기</button></div>
@@ -1021,6 +1034,16 @@ new BackCtl().addTo(map);
   up.addEventListener('touchstart', e => { uy = e.touches[0].clientY; }, {passive:true});
   up.addEventListener('touchmove', e => { if (uy !== null && uy - e.touches[0].clientY > 25) { uy = null; setFull(false); } }, {passive:true});
 })();
+/* phones: show place details in a centered bottom sheet instead of a map popup (never clipped) */
+map.on('popupopen', e => {
+  if (!isNarrow()) return;
+  const el = e.popup.getElement(); const html = el && el.querySelector('.leaflet-popup-content')?.innerHTML;
+  const ll = e.popup.getLatLng(); map.closePopup(); if (!html) return;
+  $('#sheetBody').innerHTML = html; $('#sheet').hidden = false; $('#sheetBody').scrollTop = 0;
+  requestAnimationFrame(() => { const h = $('#sheet').offsetHeight; map.panTo(ll, {animate:false}); map.panBy([0, Math.min(h / 2, map.getSize().y * .3)], {animate:true}); });
+});
+$('#sheetX').onclick = () => { $('#sheet').hidden = true; };
+map.on('click', () => { $('#sheet').hidden = true; });
 function setFull(on){
   $('#app').classList.toggle('full', on); $('#app').classList.remove('collapsed', 'big', 'tall');
   renderTools();
