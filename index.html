@@ -520,7 +520,7 @@ tfoot td{border-top:1px solid var(--ink-2);background:var(--paper-2)}
 @media (max-width:999px){
   html,body{height:100%;overflow:hidden}
   .app{display:flex;flex-direction:column;height:100vh;height:100dvh}
-  .mapcol{position:relative;top:auto;flex:0 0 70dvh;height:auto!important;min-height:0;box-shadow:none}
+  .mapcol{position:relative;top:auto;flex:0 0 60dvh;height:auto!important;min-height:0;box-shadow:none}
   .app.big .mapcol{flex-basis:35dvh}
   .app.collapsed .mapcol{flex:0 0 auto}
   .mapcol #map{flex:1;min-height:0}
@@ -1108,7 +1108,7 @@ function observeDays(){
     if (!mapState.follow || mapState.mode !== 'route') return;
     const hit = entries.filter(e => e.isIntersecting).map(e => +e.target.dataset.di);
     if (hit.length && hit[0] !== mapState.day) setDay(hit[0], true);
-  }, {rootMargin: isNarrow() ? '-72% 0px -12% 0px' : '-30% 0px -60% 0px'});
+  }, {rootMargin: isNarrow() ? '-64% 0px -20% 0px' : '-30% 0px -60% 0px'});
   document.querySelectorAll('.day').forEach(el => dayObserver.observe(el));
 }
 
