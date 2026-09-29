@@ -517,6 +517,25 @@ tfoot td{border-top:1px solid var(--ink-2);background:var(--paper-2)}
 .lb-x{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:12px;background:#fff;color:#000;border:0;border-radius:999px;padding:7px 14px;font-weight:700}
 .lb-nav{display:flex;gap:10px}
 .lb-nav button{background:#222;color:#eee;border:1px solid #444;border-radius:8px;padding:8px 16px;font-size:14px}
+@media (max-width:999px){
+  html,body{height:100%;overflow:hidden}
+  .app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+  .mapcol{position:relative;top:auto;flex:0 0 30dvh;height:auto!important;min-height:0;box-shadow:none}
+  .app.big .mapcol{flex-basis:62dvh}
+  .app.collapsed .mapcol{flex:0 0 auto}
+  .mapcol #map{flex:1;min-height:0}
+  .content{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-block:0 calc(40px + env(safe-area-inset-bottom,0px))}
+  nav.tabs{position:sticky;top:0;z-index:20}
+  .map-tools{padding:6px 8px;gap:5px}
+  .map-tools .row.one{gap:6px}
+  .map-tools .row.one .mcollapse{margin-left:0}
+  .map-tools .row.one .msize{margin-left:auto}
+  .leaflet-popup-content{width:min(230px,62vw)!important;margin:9px 11px;font-size:12.5px;max-height:19dvh;overflow-y:auto}
+  .leaflet-popup .gal,.leaflet-popup dl,.leaflet-popup .plinks,.leaflet-popup .pop p+p{display:none}
+  .leaflet-popup .pop h4{font-size:14px}
+  .basectl select{padding:4px 6px;font-size:11px}
+  .leaflet-control-zoom{display:none}
+}
 </style>
 </head>
 <body>
@@ -774,12 +793,15 @@ $('#stats').innerHTML = DATA.meta.stats.map(s => `<div class="stat"><div class="
 /* ---------- tabs highlight ---------- */
 const tabLinks = [...document.querySelectorAll('#tabs a')];
 const secs = tabLinks.map(a => document.getElementById(a.getAttribute('href').slice(1)));
+const pane = document.querySelector('.content');
+function isNarrow(){ return matchMedia('(max-width: 999px)').matches; }
 function markTab(){
   let cur = secs[0];
-  for (const s of secs) if (s && s.getBoundingClientRect().top < 140) cur = s;
+  const lim = (isNarrow() ? pane.getBoundingClientRect().top : 0) + 140;
+  for (const s of secs) if (s && s.getBoundingClientRect().top < lim) cur = s;
   tabLinks.forEach(a => a.setAttribute('aria-current', a.getAttribute('href') === '#'+cur.id ? 'true' : 'false'));
 }
-addEventListener('scroll', markTab, {passive:true}); markTab();
+addEventListener('scroll', markTab, {passive:true}); pane.addEventListener('scroll', markTab, {passive:true}); markTab();
 
 /* ---------- driver card ---------- */
 const drv = $('#driver');
@@ -993,7 +1015,9 @@ function renderTools(){
   const pl = plan();
   const modeSeg = `<div class="mseg"><button type="button" data-mode="route" class="${mapState.mode === 'route' ? 'on' : ''}">일정 경로</button><button type="button" data-mode="places" class="${mapState.mode === 'places' ? 'on' : ''}">모든 장소</button></div>`;
   const baseSeg = '';
-  const collapse = `<button type="button" class="mcollapse" id="mapCollapse">${$('#app').classList.contains('collapsed') ? '지도 펼치기' : '지도 접기'}</button>`;
+  const A = $('#app');
+  const collapse = `<button type="button" class="mcollapse" id="mapCollapse">${A.classList.contains('collapsed') ? '지도 펼치기' : '지도 접기'}</button>`;
+  const bigBtn = A.classList.contains('collapsed') ? '' : `<button type="button" class="mcollapse msize" id="mapBig">${A.classList.contains('big') ? '지도 작게' : '지도 크게'}</button>`;
   let row2;
   if (mapState.mode === 'route') {
     row2 = `<button type="button" class="dchip ${mapState.day < 0 ? 'on' : ''}" data-day="-1">전체</button>`
@@ -1003,7 +1027,9 @@ function renderTools(){
     row2 = groups.map(g => { const k = CAT[g.cats[0]]; return `<button class="chip" type="button" data-g="${g.key}" aria-pressed="${!!mapState.on[g.key]}"><span class="g" style="background:${k.c}">${k.g}</span>${g.ko}</button>`; }).join('')
       + `<button class="chip plain ${mapState.mustOnly ? 'on' : ''}" type="button" id="mustOnly">필수만</button>`;
   }
-  $('#mapTools').innerHTML = `<div class="row">${modeSeg}${baseSeg}${collapse}</div><div class="row">${row2}</div>`;
+  $('#mapTools').innerHTML = isNarrow()
+    ? `<div class="row one">${modeSeg}${bigBtn}${collapse}</div><div class="row">${row2}</div>`
+    : `<div class="row">${modeSeg}${baseSeg}${collapse}</div><div class="row">${row2}</div>`;
 }
 function renderLegend(){
   const el = $('#legend');
@@ -1023,9 +1049,8 @@ function setBase(k){
   map.removeLayer(BASES[baseKey].layer); baseKey = k; BASES[k].layer.addTo(map); store.set('base', k);
   renderMap();
 }
-function isNarrow(){ return matchMedia('(max-width: 999px)').matches; }
 function expandMap(){ const a = $('#app'); if (a.classList.contains('collapsed')) { a.classList.remove('collapsed'); renderTools(); setTimeout(() => map.invalidateSize(), 60); } }
-function toggleCollapse(){ $('#app').classList.toggle('collapsed'); renderTools(); setTimeout(() => map.invalidateSize(), 60); }
+function toggleCollapse(){ const a = $('#app'); a.classList.toggle('collapsed'); a.classList.remove('big'); renderTools(); setTimeout(() => map.invalidateSize(), 80); }
 function flyTo(p, marker){
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const z = Math.max(map.getZoom(), 16);
@@ -1039,6 +1064,7 @@ $('#mapTools').addEventListener('click', e => {
   const g = e.target.closest('[data-g]'); if (g) { mapState.on[g.dataset.g] = !mapState.on[g.dataset.g]; store.set('mapOn', mapState.on); renderMap(); return; }
   if (e.target.closest('#mustOnly')) { mapState.mustOnly = !mapState.mustOnly; renderMap(); return; }
   if (e.target.closest('#mapCollapse')) toggleCollapse();
+  if (e.target.closest('#mapBig')) { $('#app').classList.toggle('big'); renderTools(); setTimeout(() => { map.invalidateSize(); if (mapState.mode === 'route') fitDay(mapState.day); }, 80); }
 });
 $('#mapTools').addEventListener('change', e => { if (e.target.id === 'followChk') { mapState.follow = e.target.checked; store.set('follow', mapState.follow); } });
 
@@ -1061,7 +1087,7 @@ function focusStop(di, id){
   expandMap();
   if (mapState.mode !== 'route') { mapState.mode = 'route'; store.set('mapMode', 'route'); }
   if (mapState.day !== di || !stopMarkers[`${di}:${id}`]) { mapState.day = di; renderMap(); markDayCards(); }
-  flyTo(P[id], stopMarkers[`${di}:${id}`]);
+  flyTo(P[id], isNarrow() ? null : stopMarkers[`${di}:${id}`]);
   setActiveSlot(di, id, false);
 }
 function setActiveSlot(di, id, scroll){
@@ -1082,7 +1108,7 @@ function observeDays(){
     if (!mapState.follow || mapState.mode !== 'route') return;
     const hit = entries.filter(e => e.isIntersecting).map(e => +e.target.dataset.di);
     if (hit.length && hit[0] !== mapState.day) setDay(hit[0], true);
-  }, {rootMargin: isNarrow() ? '-55% 0px -35% 0px' : '-30% 0px -60% 0px'});
+  }, {rootMargin: isNarrow() ? '-42% 0px -45% 0px' : '-30% 0px -60% 0px'});
   document.querySelectorAll('.day').forEach(el => dayObserver.observe(el));
 }
 
