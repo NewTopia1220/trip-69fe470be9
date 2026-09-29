@@ -520,8 +520,8 @@ tfoot td{border-top:1px solid var(--ink-2);background:var(--paper-2)}
 @media (max-width:999px){
   html,body{height:100%;overflow:hidden}
   .app{display:flex;flex-direction:column;height:100vh;height:100dvh}
-  .mapcol{position:relative;top:auto;flex:0 0 30dvh;height:auto!important;min-height:0;box-shadow:none}
-  .app.big .mapcol{flex-basis:62dvh}
+  .mapcol{position:relative;top:auto;flex:0 0 70dvh;height:auto!important;min-height:0;box-shadow:none}
+  .app.big .mapcol{flex-basis:35dvh}
   .app.collapsed .mapcol{flex:0 0 auto}
   .mapcol #map{flex:1;min-height:0}
   .content{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-block:0 calc(40px + env(safe-area-inset-bottom,0px))}
@@ -1017,7 +1017,7 @@ function renderTools(){
   const baseSeg = '';
   const A = $('#app');
   const collapse = `<button type="button" class="mcollapse" id="mapCollapse">${A.classList.contains('collapsed') ? '지도 펼치기' : '지도 접기'}</button>`;
-  const bigBtn = A.classList.contains('collapsed') ? '' : `<button type="button" class="mcollapse msize" id="mapBig">${A.classList.contains('big') ? '지도 작게' : '지도 크게'}</button>`;
+  const bigBtn = A.classList.contains('collapsed') ? '' : `<button type="button" class="mcollapse msize" id="mapBig">${A.classList.contains('big') ? '지도 크게' : '일정 크게'}</button>`;
   let row2;
   if (mapState.mode === 'route') {
     row2 = `<button type="button" class="dchip ${mapState.day < 0 ? 'on' : ''}" data-day="-1">전체</button>`
@@ -1108,7 +1108,7 @@ function observeDays(){
     if (!mapState.follow || mapState.mode !== 'route') return;
     const hit = entries.filter(e => e.isIntersecting).map(e => +e.target.dataset.di);
     if (hit.length && hit[0] !== mapState.day) setDay(hit[0], true);
-  }, {rootMargin: isNarrow() ? '-42% 0px -45% 0px' : '-30% 0px -60% 0px'});
+  }, {rootMargin: isNarrow() ? '-72% 0px -12% 0px' : '-30% 0px -60% 0px'});
   document.querySelectorAll('.day').forEach(el => dayObserver.observe(el));
 }
 
